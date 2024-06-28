@@ -24,7 +24,7 @@ def main():
     # Prefilled values for connection parameters and API keys
     astra_db_token = "AstraCS:bZcUbzoJxZHhIkJsueNGWoyn:64cef7be4e840aedf12400789ab418f25d6eeddd1ca8db9c5d808593164ebea8"
     astra_db_id = "52f36289-1cd8-4482-81de-9ff1d1387966"
-    openai_api_key = "sk-proj-zjJI3J5ShdZkNm7huNZwT3BlbkFJsYMdlIPEskX63DRcPQlg"
+    openai_api_key = "Your_openai_key"
 
     # File uploader for PDF file
     uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
