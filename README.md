@@ -47,3 +47,6 @@ LangChain for simplifying the integration of language models and data.
 Chroma for vector storage and similarity search.
 Contributing
 Contributions are welcome! Feel free to open issues or pull requests to suggest improvements or fix bugs.
+
+
+To test the site go here: https://docubot-qna.streamlit.app/
