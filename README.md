@@ -49,4 +49,4 @@ Contributing
 Contributions are welcome! Feel free to open issues or pull requests to suggest improvements or fix bugs.
 
 
-To test the site go here: https://docubot-qna.streamlit.app/
+To test the site go here: [https://docubot-qna.streamlit.app/](https://datasciencechatbot-tw4dufj3rbsx78et47e6od.streamlit.app/)
