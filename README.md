@@ -1,6 +1,6 @@
 # DocuBot — PDF Question Answering with RAG
 
-Ask natural language questions about any PDF document. DocuBot uses a **Retrieval-Augmented Generation (RAG)** pipeline to extract text from uploaded PDFs, store it as semantic embeddings in a vector database, and answer questions by retrieving relevant passages.
+Ask natural language questions about any PDF document. DocuBot uses a **Retrieval-Augmented Generation (RAG)** pipeline to extract text from uploaded PDFs, store it as semantic embeddings in a vector [...]
 
 🔗 **[Live Demo](https://datasciencechatbot-tw4dufj3rbsx78et47e6od.streamlit.app/)**
 
