@@ -1,9 +1,11 @@
 import streamlit as st
+from PyPDF2 import PdfReader
+from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_text_splitters import CharacterTextSplitter
-from langchain.chains import RetrievalQA
-from PyPDF2 import PdfReader
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
 # --- Configuration ---
 GOOGLE_API_KEY = st.secrets["google_api_key"]
@@ -20,32 +22,43 @@ llm = ChatGoogleGenerativeAI(
     temperature=0
 )
 
+# --- RAG prompt ---
+PROMPT = ChatPromptTemplate.from_template("""
+Answer the question based only on the context below.
+If you don't know the answer from the context, say "I couldn't find that in the document."
+
+Context:
+{context}
+
+Question: {question}
+""")
+
 # --- Helper Functions ---
 def load_pdf(uploaded_file):
     raw_text = ""
-    pdfreader = PdfReader(uploaded_file)
-    for page in pdfreader.pages:
+    reader = PdfReader(uploaded_file)
+    for page in reader.pages:
         content = page.extract_text()
         if content:
             raw_text += content
     return raw_text
 
 def build_vector_store(raw_text):
-    text_splitter = CharacterTextSplitter(
+    splitter = CharacterTextSplitter(
         separator="\n",
         chunk_size=800,
         chunk_overlap=200,
-        length_function=len,
     )
-    texts = text_splitter.split_text(raw_text)
-    vector_store = Chroma.from_texts(texts, embedding)
-    return vector_store
+    chunks = splitter.split_text(raw_text)
+    return Chroma.from_texts(chunks, embedding)
+
+def format_docs(docs):
+    return "\n\n".join(d.page_content for d in docs)
 
 # --- Streamlit App ---
 st.set_page_config(page_title="DocuBot", page_icon="📄")
 st.title("DocuBot — Ask Your PDF Questions")
 
-# File Upload
 uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
 if uploaded_file is not None:
@@ -59,7 +72,6 @@ if uploaded_file is not None:
             ]
         st.success("PDF processed successfully!")
 
-# Chat Interface
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Upload a PDF above to get started."}
@@ -79,13 +91,13 @@ if prompt := st.chat_input("Ask a question about your PDF..."):
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                qa_chain = RetrievalQA.from_chain_type(
-                    llm=llm,
-                    chain_type="stuff",
-                    retriever=st.session_state.vector_store.as_retriever(
-                        search_kwargs={"k": 4}
-                    )
+                retriever = st.session_state.vector_store.as_retriever(search_kwargs={"k": 4})
+                chain = (
+                    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                    | PROMPT
+                    | llm
+                    | StrOutputParser()
                 )
-                answer = qa_chain.run(prompt)
+                answer = chain.invoke(prompt)
             st.markdown(answer)
             st.session_state.messages.append({"role": "assistant", "content": answer})
