@@ -115,7 +115,3 @@ DatascienceChatbot/
 - [ ] Experiment with reranking (e.g. Cohere Rerank) for better retrieval accuracy
 
 ---
-
-## License
-
-MIT
