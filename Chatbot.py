@@ -1,39 +1,36 @@
 import streamlit as st
-from langchain_community.vectorstores import Cassandra
-from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain.llms import OpenAI
-from langchain.embeddings import OpenAIEmbeddings
-import cassio
-from PyPDF2 import PdfReader
+from langchain_community.vectorstores import Chroma
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.text_splitter import CharacterTextSplitter
-
+from langchain.chains import RetrievalQA
+from PyPDF2 import PdfReader
 
 # --- Configuration ---
-# (Preferably store these as secrets in Streamlit Cloud or a .env file)
-ASTRA_DB_TOKEN = st.secrets["astra_db_token"]
-ASTRA_DB_ID = st.secrets["astra_db_id"]
-OPENAI_API_KEY = st.secrets["openai_api_key"]
-TABLE_NAME = "qa_mini_demo"
+GOOGLE_API_KEY = st.secrets["google_api_key"]
 
-# --- Initialization ---
-cassio.init(token=ASTRA_DB_TOKEN, database_id=ASTRA_DB_ID)
-llm = OpenAI(openai_api_key=OPENAI_API_KEY)
-embedding = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+# --- Initialisation ---
+embedding = GoogleGenerativeAIEmbeddings(
+    model="models/gemini-embedding-001",
+    google_api_key=GOOGLE_API_KEY
+)
 
-vector_store = Cassandra(embedding=embedding, table_name=TABLE_NAME)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=GOOGLE_API_KEY,
+    temperature=0
+)
 
 # --- Helper Functions ---
 def load_pdf(uploaded_file):
-    raw_text = ''
+    raw_text = ""
     pdfreader = PdfReader(uploaded_file)
-    for i, page in enumerate(pdfreader.pages):
+    for page in pdfreader.pages:
         content = page.extract_text()
         if content:
             raw_text += content
     return raw_text
 
-
-def add_to_vector_store(raw_text):
+def build_vector_store(raw_text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
         chunk_size=800,
@@ -41,35 +38,54 @@ def add_to_vector_store(raw_text):
         length_function=len,
     )
     texts = text_splitter.split_text(raw_text)
-    vector_store.add_texts(texts)  # Add all texts
+    vector_store = Chroma.from_texts(texts, embedding)
+    return vector_store
 
 # --- Streamlit App ---
-st.title("DocuBot - Ask Your Questions!!")
+st.set_page_config(page_title="DocuBot", page_icon="📄")
+st.title("DocuBot — Ask Your PDF Questions")
 
 # File Upload
 uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+
 if uploaded_file is not None:
-    raw_text = load_pdf(uploaded_file)
-    add_to_vector_store(raw_text)
-    st.success("PDF processed and added to the vector store!")
+    if "last_uploaded" not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
+        with st.spinner("Processing PDF..."):
+            raw_text = load_pdf(uploaded_file)
+            st.session_state.vector_store = build_vector_store(raw_text)
+            st.session_state.last_uploaded = uploaded_file.name
+            st.session_state.messages = [
+                {"role": "assistant", "content": f"Ready! I've processed **{uploaded_file.name}**. Ask me anything about it."}
+            ]
+        st.success("PDF processed successfully!")
 
 # Chat Interface
 if "messages" not in st.session_state:
-    st.session_state.messages = []
-    st.session_state.messages.append({"role": "assistant", "content": "Ask me questions about your uploaded PDF!"})
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Upload a PDF above to get started."}
+    ]
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("Your question"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+if prompt := st.chat_input("Ask a question about your PDF..."):
+    if "vector_store" not in st.session_state:
+        st.warning("Please upload a PDF first.")
+    else:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        vector_index = VectorStoreIndexWrapper(vectorstore=vector_store)
-        answer = vector_index.query(prompt, llm=llm)
-        st.markdown(answer)
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                qa_chain = RetrievalQA.from_chain_type(
+                    llm=llm,
+                    chain_type="stuff",
+                    retriever=st.session_state.vector_store.as_retriever(
+                        search_kwargs={"k": 4}
+                    )
+                )
+                answer = qa_chain.run(prompt)
+            st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
