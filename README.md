@@ -1,52 +1,121 @@
-# DatascienceChatbot
-PDF Question Answering System
-This Python application allows you to upload PDF documents, store their content in a MySQL database, and then ask questions about the documents. The system uses LangChain and OpenAI to provide intelligent answers based on the text within the PDFs.
+# DocuBot — PDF Question Answering with RAG
 
-Features
-PDF Processing: Extracts text from uploaded PDFs and splits it into meaningful chunks.
-MySQL Database: Stores the extracted text chunks for efficient retrieval.
-Vector Search: Uses OpenAI embeddings and LangChain's Chroma vector store to perform semantic search on the PDF content.
-Question Answering: Employs OpenAI's language model to generate answers to your questions based on the relevant text found in the PDFs.
+Ask natural language questions about any PDF document. DocuBot uses a **Retrieval-Augmented Generation (RAG)** pipeline to extract text from uploaded PDFs, store it as semantic embeddings in a vector database, and answer your questions using OpenAI's language model — grounded in the document's actual content.
 
-Installation
+🔗 **[Live Demo](https://datasciencechatbot-tw4dufj3rbsx78et47e6od.streamlit.app/)**
 
-Install dependencies:
+---
 
+## How it works
+
+```
+PDF Upload  ──►  Text Extraction  ──►  Chunk & Embed  ──►  AstraDB Vector Store
+                                                                    │
+User Question  ──►  Semantic Search  ──►  Top-k Chunks  ──►  OpenAI LLM  ──►  Answer
+```
+
+1. A PDF is uploaded and its text is extracted page by page using PyPDF2
+2. The text is split into overlapping chunks (800 tokens, 200 overlap) using LangChain's `CharacterTextSplitter`
+3. Each chunk is embedded via OpenAI Embeddings and stored in **DataStax AstraDB** (a managed Apache Cassandra vector store)
+4. When a question is asked, the most semantically relevant chunks are retrieved and passed to GPT as context
+5. The LLM generates a grounded answer — not a hallucination — based only on the document
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| UI | Streamlit |
+| PDF parsing | PyPDF2 |
+| Text splitting | LangChain `CharacterTextSplitter` |
+| Embeddings | OpenAI `text-embedding-ada-002` |
+| Vector store | DataStax AstraDB (Apache Cassandra) |
+| LLM | OpenAI GPT (via LangChain) |
+| Orchestration | LangChain `VectorStoreIndexWrapper` |
+| Secrets management | Streamlit Secrets |
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Python 3.9+
+- An [OpenAI API key](https://platform.openai.com/api-keys)
+- A free [DataStax AstraDB](https://astra.datastax.com/) account (create a Serverless Cassandra database)
+
+### Installation
+
+```bash
+git clone https://github.com/aadityamishra2002/DatascienceChatbot.git
+cd DatascienceChatbot
 pip install -r requirements.txt
-Set up MySQL:
+```
 
-Create a MySQL database.
-Update the database connection details in the code (host, user, password, database name).
-Obtain OpenAI API Key:
+### Configuration
 
-Get an API key from OpenAI and replace the placeholder in the code.
-Usage
-Run the script:
+Create a `.streamlit/secrets.toml` file in the project root:
 
-python your_script_name.py
-Upload PDF:
+```toml
+openai_api_key = "sk-..."
+astra_db_token = "AstraCS:..."
+astra_db_id = "your-database-id"
+```
 
-You will be prompted to enter the path to your PDF file.
-Enter a name for the document to be stored in the database.
-Ask Questions:
+> Never commit this file — it's already in `.gitignore`.
 
-After the PDF is processed, you can start asking questions about its content.
-Type "quit" to exit the application.
-Dependencies
-Python 3.x
-PyPDF2
-mysql.connector
-LangChain
-OpenAI
-Chroma
-Acknowledgments
-This project utilizes:
+### Run locally
 
-OpenAI API for language processing and question answering.
-LangChain for simplifying the integration of language models and data.
-Chroma for vector storage and similarity search.
-Contributing
-Contributions are welcome! Feel free to open issues or pull requests to suggest improvements or fix bugs.
+```bash
+streamlit run Chatbot.py
+```
 
+Open [http://localhost:8501](http://localhost:8501) in your browser.
 
-To test the site go here: [https://docubot-qna.streamlit.app/](https://datasciencechatbot-tw4dufj3rbsx78et47e6od.streamlit.app/)
+---
+
+## Usage
+
+1. Upload any PDF using the file uploader
+2. Wait for the "PDF processed" confirmation
+3. Type your question in the chat input
+4. DocuBot retrieves relevant passages from the document and answers accordingly
+
+---
+
+## Project structure
+
+```
+DatascienceChatbot/
+├── Chatbot.py          # Main Streamlit app — RAG pipeline + chat UI
+├── requirements.txt    # Python dependencies
+└── .streamlit/
+    └── secrets.toml    # API keys (not committed)
+```
+
+---
+
+## Key concepts demonstrated
+
+- **RAG architecture** — combining retrieval with generation to reduce hallucinations
+- **Vector embeddings** — representing text as high-dimensional vectors for semantic search
+- **Chunking strategy** — overlapping windows to preserve context across chunk boundaries
+- **Managed vector database** — using AstraDB for scalable, production-ready vector storage
+- **LangChain orchestration** — chaining retrieval and generation steps declaratively
+
+---
+
+## Potential improvements
+
+- [ ] Support multiple PDF uploads simultaneously
+- [ ] Add source citation — show which page/chunk the answer came from
+- [ ] Swap in an open-source embedding model (e.g. `sentence-transformers`) to reduce API costs
+- [ ] Add chat history memory so follow-up questions are context-aware
+- [ ] Experiment with reranking (e.g. Cohere Rerank) for better retrieval accuracy
+
+---
+
+## License
+
+MIT
